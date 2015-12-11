@@ -1,0 +1,24 @@
+Configuring x509-store-1.6.1...
+Building x509-store-1.6.1...
+Preprocessing library x509-store-1.6.1...
+[1 of 3] Compiling Data.X509.Memory ( Data/X509/Memory.hs, dist/dist-sandbox-9ed4dd06/build/Data/X509/Memory.o )
+[2 of 3] Compiling Data.X509.File   ( Data/X509/File.hs, dist/dist-sandbox-9ed4dd06/build/Data/X509/File.o )
+
+Data/X509/File.hs:8:1: Warning:
+    The import of ‘Data.ASN1.BinaryEncoding’ is redundant
+      except perhaps to import instances from ‘Data.ASN1.BinaryEncoding’
+    To import instances alone, use: import Data.ASN1.BinaryEncoding()
+
+Data/X509/File.hs:9:1: Warning:
+    The import of ‘Data.ASN1.Encoding’ is redundant
+      except perhaps to import instances from ‘Data.ASN1.Encoding’
+    To import instances alone, use: import Data.ASN1.Encoding()
+
+Data/X509/File.hs:13:1: Warning:
+    The import of ‘pemName’ from module ‘Data.PEM’ is redundant
+[3 of 3] Compiling Data.X509.CertificateStore ( Data/X509/CertificateStore.hs, dist/dist-sandbox-9ed4dd06/build/Data/X509/CertificateStore.o )
+In-place registering x509-store-1.6.1...
+Creating package registration file: /tmp/pkgConf-x509-store-1.620944.1
+Installing library in
+/home/codeonwort/haskell/projects/democracybot/.cabal-sandbox/lib/x86_64-linux-ghc-7.8.4/x509-store-1.6.1
+Registering x509-store-1.6.1...

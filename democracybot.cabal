@@ -20,6 +20,6 @@ executable democracybot
   main-is:             Main.hs
   -- other-modules:       
   -- other-extensions:    
-  build-depends:       base >=4.7 && <4.8
+  build-depends:       base >=4.7 && <4.8, text, websockets, network, mtl, http-conduit, bytestring, http-client-tls, aeson, wuss, regex-posix
   hs-source-dirs:      src
   default-language:    Haskell2010
