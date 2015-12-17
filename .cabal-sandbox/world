@@ -1,3 +1,4 @@
+concurrent-extra -any
 wuss -any
 regex-posix -any
 aeson -any

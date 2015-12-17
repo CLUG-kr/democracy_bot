@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                democracybot
-version:             0.1.0.0
+version:             0.2.0.0
 synopsis:            slack bot fulfilling democracy
 -- description:         
 homepage:            https://github.com/clug-kr/democracy_bot
@@ -20,6 +20,13 @@ executable democracybot
   main-is:             Main.hs
   -- other-modules:       
   -- other-extensions:    
-  build-depends:       base >=4.7 && <4.8, text, websockets, network, mtl, http-conduit, bytestring, http-client-tls, aeson, wuss, regex-posix
+  build-depends:       base >=4.7 && <4.8, text, websockets, network, mtl, http-conduit, bytestring, http-client-tls, aeson, wuss, regex-posix, process, directory, unbounded-delays
   hs-source-dirs:      src
   default-language:    Haskell2010
+
+executable test
+  main-is:            modules/Test.hs
+  build-depends:      base, bytestring, aeson, text, unbounded-delays
+  hs-source-dirs:     src
+  default-language:   Haskell2010
+

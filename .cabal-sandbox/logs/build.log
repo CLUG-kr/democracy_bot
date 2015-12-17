@@ -746,3 +746,23 @@ dependencies: websockets-0.9.6.1 network-2.6.2.1 connection-0.2.5
 install-outcome: InstallOk
 docs-outcome: NotTried
 tests-outcome: NotTried
+
+package: concurrent-extra-0.7.0.9
+os: linux
+arch: x86_64
+compiler: ghc-7.8.4
+client: cabal-install-1.22.6.0
+dependencies: unbounded-delays-0.1.0.9 stm-2.4.4 base-4.7.0.2
+install-outcome: InstallOk
+docs-outcome: NotTried
+tests-outcome: NotTried
+
+package: unbounded-delays-0.1.0.9
+os: linux
+arch: x86_64
+compiler: ghc-7.8.4
+client: cabal-install-1.22.6.0
+dependencies: base-4.7.0.2
+install-outcome: InstallOk
+docs-outcome: NotTried
+tests-outcome: NotTried

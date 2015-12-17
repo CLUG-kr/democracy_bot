@@ -26,20 +26,21 @@ import Wuss
 data Self = Self {
 	getSelfID :: String,
 	getSelfName :: String
-}
+} deriving (Show, Read)
 
 data User = User {
 	getUserID :: String,
 	getUserName :: String
-}
+} deriving (Show, Read)
 
+-- data that need to be modified and retreived between threads
+-- are not maintained here. see (MVar KernelState) in Main.hs
 data Bot = Bot {
 	getSelf :: Self,
 	getUsers :: [User],
 	getServerHost :: String,
-	getServerPath :: String,
-	getBotModules :: [String]
-}
+	getServerPath :: String
+} deriving (Show, Read)
 
 instance FromJSON Self where
 	parseJSON (Aeson.Object v) =
@@ -50,7 +51,7 @@ instance FromJSON User where
 		User <$> (v .: "id") <*> (v .: "name")
 
 instance FromJSON Bot where
-	parseJSON (Aeson.Object v) = Bot <$> self <*> users <*> (pure host) <*> (pure path) <*> (pure []) where
+	parseJSON (Aeson.Object v) = Bot <$> self <*> users <*> (pure host) <*> (pure path) where
 		self = v .: "self" :: Aeson.Parser Self
 		users = v .: "users" :: Aeson.Parser [User]
 		Aeson.Success (host, path) = flip Aeson.parse v $ \obj -> do
@@ -106,7 +107,7 @@ instance ToJSON SendMessage where
 				"text" .= txt, "type" .= ("message" :: String)]
 
 -- from slack to bot
-data ReceiveMessage = ReceiveMessage {
+data ReceiveMessage = ReceiveSimpleMessage {
 	receiveMessage_channel :: String,
 	receiveMessage_user :: String,
 	receiveMessage_text :: String
@@ -116,6 +117,11 @@ getProp :: Aeson.Object -> String -> String
 getProp json prop = case getPropParser json prop of
 	Aeson.Success v -> v
 	Aeson.Error _ -> undefined
+
+hasProp :: Aeson.Object -> String -> Bool
+hasProp json prop = case getPropParser json prop of
+	Aeson.Success v -> True
+	Aeson.Error _ -> False
 
 getPropParser :: Aeson.Object -> String -> Aeson.Result String
 getPropParser json prop = flip Aeson.parse json $
