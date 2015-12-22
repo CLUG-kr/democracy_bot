@@ -20,12 +20,14 @@ import Data.List
 import qualified Settings
 import IPC
 import Bot
+import Connection
 
 type ModuleProcess = (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)
 data KernelState = KernelState {
 	getKernelModules :: [(ModuleProcess, String)],
 	getKernelSubscribers :: [String],
-	getKernelAdmin :: String
+	getKernelAdmin :: String,
+	getKernelResolvingCommands :: [(String, [String])] -- (command, voters)
 }
 
 main = do
@@ -39,15 +41,15 @@ kernel bot conn = do
 	putStrLn "Connected to clug slack"
 	putStrLn $ "bot name: " ++ (getSelfName $ getSelf bot)
 	putStrLn $ "bot id:   " ++ (getSelfID $ getSelf bot)
-	
-	kstate <- newMVar $ KernelState [] ["codeonwort"] "codeonwort"
-
+	kstate <- newMVar $ KernelState [] ["codeonwort"] "codeonwort" []
 	--sendMsg conn (Message 1 "C04TJBLCG" "kernel loaded")
-	_ <- forkIO $ forever $ do
-		recvMsg conn >>= handleInput bot conn kstate
 	let loop = do
+		recvMsg conn >>= handleInput bot conn kstate
+		delay 33333 >> loop --30fps
+	let loop2 = do
 		line <- T.getLine
-		unless (T.null line) $ sendRaw conn line >> loop
+		unless (T.null line) $ sendRaw conn line >> loop2
+	forkIO loop
 	loop
 
 handleInput bot conn kstate jsonMsg = case jsonMsg of
@@ -55,7 +57,7 @@ handleInput bot conn kstate jsonMsg = case jsonMsg of
 		let msgType = getPropParser json "type" :: Result String
 		case msgType of
 			Success "message" ->
-				if hasProp json "subtype" && getProp json "subtype" == "message_changed"
+				if hasProp json "subtype"
 				then return ()
 				else handleInput_message bot conn kstate json
 			_ -> putStrLn "=> unrecognized message"
@@ -63,14 +65,60 @@ handleInput bot conn kstate jsonMsg = case jsonMsg of
 		putStrLn "slack sent me non-json data... wtf?"
 		putStrLn $ "=> " ++ (show jsonMsg)
 
-parseMessage json = ReceiveSimpleMessage {
-	receiveMessage_channel = getProp json "channel" :: String,
-	receiveMessage_user = getProp json "user" :: String,
-	receiveMessage_text = getProp json "text" :: String
-}
+startVote bot kstate conn json = do
+	let msg = parseMessage json
+	let chan = receiveMessage_channel msg
+	let userID = receiveMessage_user msg
+	let cmd = receiveMessage_text msg
+	let user = getUserName $ getUserWithID bot userID
+	--let botName = (getSelfName . getSelf) bot
+	--let botID = (getSelfID . getSelf) bot
+	ks <- takeMVar kstate
+	let subscribers = getKernelSubscribers ks
+	let cmd_list_old = getKernelResolvingCommands ks
+	if user `notElem` subscribers
+	then do
+		sendMsg conn $ Message 12 chan (user ++ "님은 투표권이 없습니다.")
+		putMVar kstate ks
+	else do
+		(idx,first) <- case findIndex (\(resolving,_) -> cmd == resolving) cmd_list_old of
+			Nothing -> do
+				sendMsg conn $ Message 1 chan (user ++ "님이 다음 안건을 의결했습니다: `" ++ cmd ++ "`\n찬성하시면 동일 안건을 30초 내에 입력해주세요.")
+				putMVar kstate $ ks { getKernelResolvingCommands = (cmd,[user]):cmd_list_old }
+				return (0,True)
+			Just idx' -> putMVar kstate ks >> return (idx',False)
+		ks <- takeMVar kstate
+		let cmd_list = getKernelResolvingCommands ks
+		let (_, voters) = cmd_list !! idx
+		if (user `elem` voters && first == False)
+		then do
+			sendMsg conn $ Message 1 chan (user ++ "님은 이미 이 안건에 찬성했습니다")
+			putMVar kstate ks
+		else do
+			when (first == False) $ sendMsg conn $ Message 10 chan (user ++ "님이 찬성했습니다")
+			let cmd_list' = (cmd, user:voters) : (deleteAt cmd_list idx)
+			putMVar kstate $ ks { getKernelResolvingCommands = cmd_list' }
+		ks <- takeMVar kstate
+		let majority = ((length . getKernelSubscribers) ks) `div` 2
+		if (length voters) > majority
+		then do
+			sendMsg conn $ Message 1 chan ("`" ++ cmd ++ "` 찬성이 과반수를 넘어 집행을 시작합니다.")
+			putMVar kstate $ ks { getKernelResolvingCommands = deleteAt cmd_list idx }
+			executeResolution bot kstate conn json
+		else putMVar kstate ks
+		
+deleteAt ls idx = take idx ls ++ drop (idx + 1) ls
 
 -- kstate :: MVar KernelState
 handleInput_message bot conn kstate json = do
+	let msg = parseMessage json
+	let cmd = receiveMessage_text msg
+	let botName = (getSelfName . getSelf) bot
+	if botName `isPrefixOf` cmd
+	then startVote bot kstate conn json
+	else return ()
+
+executeResolution bot kstate conn json = do
 	let msg = parseMessage json
 	let chan = receiveMessage_channel msg
 	let usr = receiveMessage_user msg
@@ -78,8 +126,6 @@ handleInput_message bot conn kstate json = do
 	let usrName = getUserName $ getUserWithID bot usr
 	let botName = (getSelfName . getSelf) bot
 	let botID = (getSelfID . getSelf) bot
-	when (botName `isPrefixOf` txt) $ do
-		sendMsg conn $ Message 1 chan ("did you call me, " ++ usrName)
 	when (txt == botName ++ " status") $ do
 		ks <- takeMVar kstate
 		let mod_list = getKernelModules ks
@@ -125,6 +171,23 @@ handleInput_message bot conn kstate json = do
 				putMVar kstate ks { getKernelModules = filter (\(_,n)-> n /= module_name) mod_list }
 			Nothing -> sendMsg conn $ Message 5 chan (module_name ++ "은 실행 중인 모듈이 아닙니다")
 	--
+	let prefix_add_sub = botName ++ " add-subscriber "
+	when (prefix_add_sub `isPrefixOf` txt) $ do
+		let cand_name = (length prefix_add_sub) `drop` txt
+		case getUserWithName bot cand_name of
+			Just (User id name) -> do
+				ks <- takeMVar kstate
+				let subs = getKernelSubscribers ks
+				if cand_name `elem` subs
+				then do
+					sendMsg conn $ Message 20 chan ("이미 가입된 시민입니다")
+					putMVar kstate ks
+				else do
+					sendMsg conn $ Message 20 chan ("가입자 추가: " ++ cand_name)
+					putMVar kstate $ ks { getKernelSubscribers = (cand_name : subs) }
+			Nothing -> do
+				sendMsg conn $ Message 20 chan ("사용자를 찾을 수 없습니다: " ++ cand_name)
+	--
 	let prefix_attack = botName ++ " attack "
 	when (prefix_attack `isPrefixOf` txt) $ do
 		let attack_name = (length prefix_attack) `drop` txt
@@ -155,8 +218,7 @@ moduleRunning kstate module_name = do
 sendBS hdl bs = L.hPutStr hdl bs >> hFlush hdl
 sendTo hdl ipc = hPutStrLn hdl (show ipc) >> hFlush hdl
 runModule bot conn (Just hin, Just hout, _, _) moduleName channel = do
-	let ping = sendTo hin (Log "ping") >> delay 1000000 >> ping
-	forkIO $ ping
+	sendTo hin $ BotInfo (show bot)
 	let loop = do
 		eof <- hIsEOF hout
 		if eof
@@ -172,6 +234,9 @@ runModule bot conn (Just hin, Just hout, _, _) moduleName channel = do
 					putStrLn $ "module log: " ++ body
 				BotInfo body -> do
 					sendMsg conn $ Message 1 channel ("봇 상태: " ++ body)
+				GetByteString len -> do
+					json <- L.hGet hout len
+					sendRaw conn json
 				_ -> return ()
 			return ()
 		delay 1000000
