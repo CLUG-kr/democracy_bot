@@ -90,16 +90,18 @@ startVote bot kstate conn json = do
 		ks <- takeMVar kstate
 		let cmd_list = getKernelResolvingCommands ks
 		let (_, voters) = cmd_list !! idx
-		if (user `elem` voters && first == False)
+		if user `elem` voters
 		then do
-			sendMsg conn $ Message 1 chan (user ++ "님은 이미 이 안건에 찬성했습니다")
+			when (first == False) $ do
+				sendMsg conn $ Message 1 chan (user ++ "님은 이미 이 안건에 찬성했습니다")
 			putMVar kstate ks
 		else do
-			when (first == False) $ sendMsg conn $ Message 10 chan (user ++ "님이 찬성했습니다")
+			sendMsg conn $ Message 10 chan (user ++ "님이 찬성했습니다")
 			let cmd_list' = (cmd, user:voters) : (deleteAt cmd_list idx)
 			putMVar kstate $ ks { getKernelResolvingCommands = cmd_list' }
 		ks <- takeMVar kstate
 		let majority = ((length . getKernelSubscribers) ks) `div` 2
+		print voters
 		if (length voters) > majority
 		then do
 			sendMsg conn $ Message 1 chan ("`" ++ cmd ++ "` 찬성이 과반수를 넘어 집행을 시작합니다.")
