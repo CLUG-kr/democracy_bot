@@ -22,8 +22,8 @@ main = do
 	botInput <- read `fmap` getLine :: IO IPC
 	case botInput of
 		BotInfo info -> do
-			forkIO $ inputLogic (read info :: Bot)
-			outputLogic
+			forkIO $ outputLogic
+			inputLogic (read info :: Bot)
 		_ -> send (Log "give me bot information") >> undefined
 
 inputLogic bot = do
@@ -38,12 +38,13 @@ inputLogic bot = do
 		GetByteString length -> do
 			send $ Log "JSON 받았다!!!!"
 			cont <- L.hGet stdin length
+			L.hGet stdin 1
 			let maybeJson = decode cont :: Maybe Object
 			case maybeJson of
 				Just json -> jsonHandler bot json
 				Nothing -> send $ Log "json 파싱 실패"
 		_ -> return ()
-	delay 33333 --30fps
+	--delay 33333 --30fps
 	inputLogic bot
 
 jsonHandler bot json = do

@@ -1,5 +1,5 @@
 import System.Process
-import System.IO (hGetLine, hIsEOF, hPutStrLn, hFlush, Handle)
+import System.IO (hGetLine, hIsEOF, hPutStrLn, hFlush, Handle, hSetBuffering, BufferMode(LineBuffering))
 import System.Environment (getExecutablePath)
 import System.Directory (doesFileExist)
 import Control.Concurrent.Thread.Delay
@@ -152,7 +152,9 @@ executeResolution bot kstate conn json = do
 			case found of
 				Just _ -> sendMsg conn $ Message 5 chan (module_name ++ "은 이미 로드되었습니다")
 				Nothing -> do
-					modProc <- createProcess $ (proc module_path []){ std_in = CreatePipe, std_out = CreatePipe }
+					modProc@(Just hin, Just hout, _, _) <- createProcess $ (proc module_path []){ std_in = CreatePipe, std_out = CreatePipe }
+					--hSetBuffering hin NoBuffering
+					--hSetBuffering hout LineBuffering
 					ks <- takeMVar kstate
 					let mod_list = getKernelModules ks
 					putMVar kstate $ ks { getKernelModules = (modProc,module_name):mod_list }
@@ -202,6 +204,7 @@ executeResolution bot kstate conn json = do
 		sendTo hin $ GetByteString $ (fromIntegral (L.length encodedJSON) :: Int)
 		sendBS hin $ encodedJSON
 	putMVar kstate ks
+	putStrLn "command is propagated to modules"
 	return ()
 
 getModulePath module_name = do
@@ -217,7 +220,7 @@ moduleRunning kstate module_name = do
 	putMVar kstate ks
 	return found
 
-sendBS hdl bs = L.hPutStr hdl bs >> hFlush hdl
+sendBS hdl bs = L.hPutStr hdl bs >> L.hPutStr hdl (L8.pack "\n") >> hFlush hdl
 sendTo hdl ipc = hPutStrLn hdl (show ipc) >> hFlush hdl
 runModule bot conn (Just hin, Just hout, _, _) moduleName channel = do
 	sendTo hin $ BotInfo (show bot)
@@ -241,6 +244,6 @@ runModule bot conn (Just hin, Just hout, _, _) moduleName channel = do
 					sendRaw conn json
 				_ -> return ()
 			return ()
-		delay 1000000
+		delay 33333 --1000000
 		loop
 	loop
