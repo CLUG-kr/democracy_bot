@@ -1,8 +1,0 @@
-concurrent-extra -any
-wuss -any
-regex-posix -any
-aeson -any
-http-conduit -any
-HTTP -any
-mtl -any
-websockets -any
