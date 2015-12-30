@@ -26,6 +26,7 @@ executable democracybot
   ghc-options:
     -O3
     -threaded
+    -fno-warn-tabs
 
 executable test
   main-is:            modules/Test.hs
@@ -35,4 +36,4 @@ executable test
   ghc-options:
     -O3
     -threaded
-
+    -fno-warn-tabs

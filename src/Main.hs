@@ -128,6 +128,7 @@ executeResolution bot kstate conn json = do
 	let usrName = getUserName $ getUserWithID bot usr
 	let botName = (getSelfName . getSelf) bot
 	let botID = (getSelfID . getSelf) bot
+	-- display status
 	when (txt == botName ++ " status") $ do
 		ks <- takeMVar kstate
 		let mod_list = getKernelModules ks
@@ -138,9 +139,7 @@ executeResolution bot kstate conn json = do
 		putMVar kstate ks
 	when (txt == botName ++ " help") $ do
 		sendMsg conn $ Message 3 chan ("나는 나보다 약한 녀석의 명령 따윈 듣지 않는다.")
-	when (txt == botName ++ " 맞아 아니야") $ do
-		sendMsg conn $ Message 4 chan ("내가 어떻게 알아")
-	--
+	-- load module
 	let prefix_load_module = botName ++ " load-module "
 	when (prefix_load_module `isPrefixOf` txt) $ do
 		let module_name = (length prefix_load_module) `drop` txt
@@ -161,7 +160,7 @@ executeResolution bot kstate conn json = do
 					tid <- forkIO $ runModule bot conn modProc module_name chan
 					sendMsg conn $ Message 5 chan (module_name ++ " 모듈을 실행합니다")
 		else sendMsg conn $ Message 5 chan ("모듈을 찾을 수 없습니다")
-	--
+	-- unload module
 	let prefix_unload_module = botName ++ " unload-module "
 	when(prefix_unload_module `isPrefixOf` txt) $ do
 		let module_name = (length prefix_unload_module) `drop` txt
@@ -191,11 +190,6 @@ executeResolution bot kstate conn json = do
 					putMVar kstate $ ks { getKernelSubscribers = (cand_name : subs) }
 			Nothing -> do
 				sendMsg conn $ Message 20 chan ("사용자를 찾을 수 없습니다: " ++ cand_name)
-	--
-	let prefix_attack = botName ++ " attack "
-	when (prefix_attack `isPrefixOf` txt) $ do
-		let attack_name = (length prefix_attack) `drop` txt
-		sendMsg conn $ Message 8 chan (attack_name ++ ", 이 역겨운 유기물 덩어리가...")
 	-- propagate the message from slack to all modules
 	ks <- takeMVar kstate
 	let mod_list = getKernelModules ks

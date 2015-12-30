@@ -64,9 +64,13 @@ messageHandler bot json = do
 	let botName = (getSelfName . getSelf) bot
 	let botID = (getSelfID . getSelf) bot
 	when (botName `isPrefixOf` txt) $ do
-		let respond = Aeson.encode $ Message 1 chan ("did you call me, " ++ userName)
-		send $ GetByteString $ (fromIntegral (L.length respond) :: Int)
-		sendBS respond
+		sendMsg $ Message 1 chan ("did you call me, " ++ userName)
+	when (txt == botName ++ " 맞아 아니야") $ do
+		sendMsg $ Message 1 chan "내가 어떻게 알아"
+	let prefix_attack = botName ++ " attack "
+	when (prefix_attack `isPrefixOf` txt) $ do
+		let attack_name = (length prefix_attack) `drop` txt
+		sendMsg $ Message 8 chan (attack_name ++ ", 이 역겨운 유기물 덩어리가...")
 	return ()
 
 outputLogic = do
@@ -75,5 +79,9 @@ outputLogic = do
 	delay 1000000
 	outputLogic
 
+sendMsg msg = do
+	let bs = Aeson.encode msg
+	send (GetByteString $ (fromIntegral (L.length bs) :: Int))
+	sendBS bs
 sendBS bs = L.putStr bs >> hFlush stdout
 send ipc = (putStrLn $ show ipc) >> hFlush stdout
