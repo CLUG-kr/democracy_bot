@@ -27,22 +27,22 @@ main = do
 		_ -> send (Log "give me bot information") >> undefined
 
 inputLogic bot = do
-	send $ Log "Before input"
+	--send $ Log "Before input"
 	ipc <- read `fmap` getLine :: IO IPC
-	send $ Log "after input"
+	--send $ Log "after input"
 	case ipc of
 		TerminateModule code -> do
 			send $ Log "모듈을 종료합니다..."
 			exitWith ExitSuccess
-			hPutStrLn stderr "문제문제문제"
+			hPutStrLn stderr "[에러] 모듈에 문제 발생"
 		GetByteString length -> do
-			send $ Log "JSON 받았다!!!!"
+			send $ Log "test 모듈 - JSON 받음"
 			cont <- L.hGet stdin length
 			L.hGet stdin 1
 			let maybeJson = decode cont :: Maybe Object
 			case maybeJson of
 				Just json -> jsonHandler bot json
-				Nothing -> send $ Log "json 파싱 실패"
+				Nothing -> send $ Log "[에러] json 파싱 실패"
 		_ -> return ()
 	--delay 33333 --30fps
 	inputLogic bot
@@ -74,7 +74,7 @@ messageHandler bot json = do
 	return ()
 
 outputLogic = do
-	send $ Log "ping from test module"
+	--send $ Log "ping from test module"
 	--send $ Relay "{\"type\":\"message\", \"id\":1, \"channel\":\"C0GDE81EZ\", \"text\":\"message from <test> module\"}"
 	delay 1000000
 	outputLogic
