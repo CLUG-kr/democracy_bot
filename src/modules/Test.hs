@@ -5,6 +5,7 @@ import Control.Concurrent
 import Control.Monad
 import System.Exit
 import System.IO
+import System.Process
 import Data.Int
 import Data.List
 import Data.Aeson as Aeson
@@ -36,7 +37,7 @@ inputLogic bot = do
 			exitWith ExitSuccess
 			hPutStrLn stderr "[에러] 모듈에 문제 발생"
 		GetByteString length -> do
-			send $ Log "test 모듈 - JSON 받음"
+			send $ Log "test 모듈 - JSON 받았다!!!!"
 			cont <- L.hGet stdin length
 			L.hGet stdin 1
 			let maybeJson = decode cont :: Maybe Object
@@ -67,11 +68,18 @@ messageHandler bot json = do
 		sendMsg $ Message 1 chan ("did you call me, " ++ userName)
 	when (txt == botName ++ " 맞아 아니야") $ do
 		sendMsg $ Message 1 chan "내가 어떻게 알아"
-	let prefix_attack = botName ++ " attack "
-	when (prefix_attack `isPrefixOf` txt) $ do
-		let attack_name = (length prefix_attack) `drop` txt
-		sendMsg $ Message 8 chan (attack_name ++ ", 이 역겨운 유기물 덩어리가...")
+	whenPrefix (botName ++ " attack ") txt $ \attack_target -> do
+		sendMsg $ Message 8 chan (attack_target ++ ", 이 역겨운 유기물 덩어리가...")
+	whenPrefix (botName ++ " shell ") txt $ \cmd -> do
+		sendMsg $ Message 10 chan ("셸 명령 실행: " ++ cmd)
+		(_,Just hout,_,_) <- createProcess $ (shell cmd){ std_out = CreatePipe }
+		shell_output <- hGetContents hout
+		sendMsg $ Message 20 chan shell_output
 	return ()
+
+whenPrefix pre txt action =
+	let msg = (length pre) `drop` txt
+	in when (pre `isPrefixOf` txt) $ action msg
 
 outputLogic = do
 	--send $ Log "ping from test module"
