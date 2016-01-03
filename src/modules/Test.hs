@@ -28,16 +28,14 @@ main = do
 		_ -> send (Log "give me bot information") >> undefined
 
 inputLogic bot = do
-	--send $ Log "Before input"
 	ipc <- read `fmap` getLine :: IO IPC
-	--send $ Log "after input"
 	case ipc of
 		TerminateModule code -> do
 			send $ Log "모듈을 종료합니다..."
 			exitWith ExitSuccess
 			hPutStrLn stderr "[에러] 모듈에 문제 발생"
 		GetByteString length -> do
-			send $ Log "test 모듈 - JSON 받았다!!!!"
+			send $ Log "test 모듈 - JSON received!"
 			cont <- L.hGet stdin length
 			L.hGet stdin 1
 			let maybeJson = decode cont :: Maybe Object
@@ -54,7 +52,7 @@ jsonHandler bot json = do
 		Success "message" -> do
 			if hasProp json "subtype" then return ()
 			else messageHandler bot json
-		_ -> send $ Log "test module - unrecognized message"
+		_ -> send $ Log "[에러] test module - unrecognized message"
 
 messageHandler bot json = do
 	let msg = parseMessage json
@@ -64,17 +62,19 @@ messageHandler bot json = do
 	let userName = getUserName $ getUserWithID bot userID
 	let botName = (getSelfName . getSelf) bot
 	let botID = (getSelfID . getSelf) bot
-	when (botName `isPrefixOf` txt) $ do
-		sendMsg $ Message 1 chan ("did you call me, " ++ userName)
-	when (txt == botName ++ " 맞아 아니야") $ do
-		sendMsg $ Message 1 chan "내가 어떻게 알아"
-	whenPrefix (botName ++ " attack ") txt $ \attack_target -> do
-		sendMsg $ Message 8 chan (attack_target ++ ", 이 역겨운 유기물 덩어리가...")
+	-- help
+	when (txt == botName ++ " help") $ do
+		let helpMsg = intercalate "\n" $
+			["[test 모듈 명령어 목록]"
+			,"shell <shell_cmd>: 셸에서 이 명령을 실행한다"]
+		sendMsg $ Message 1 chan helpMsg
+	-- shell
 	whenPrefix (botName ++ " shell ") txt $ \cmd -> do
 		sendMsg $ Message 10 chan ("셸 명령 실행: " ++ cmd)
 		(_,Just hout,_,_) <- createProcess $ (shell cmd){ std_out = CreatePipe }
 		shell_output <- hGetContents hout
 		sendMsg $ Message 20 chan shell_output
+	-- end of messageHandler
 	return ()
 
 whenPrefix pre txt action =
@@ -82,8 +82,7 @@ whenPrefix pre txt action =
 	in when (pre `isPrefixOf` txt) $ action msg
 
 outputLogic = do
-	--send $ Log "ping from test module"
-	--send $ Relay "{\"type\":\"message\", \"id\":1, \"channel\":\"C0GDE81EZ\", \"text\":\"message from <test> module\"}"
+	-- do nothing currently
 	delay 1000000
 	outputLogic
 

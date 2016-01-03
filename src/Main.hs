@@ -1,5 +1,8 @@
+-- all open source libraries we used are binary packages.
+-- entire source code is written manually.
+
+import System.IO
 import System.Process
-import System.IO (hGetLine, hIsEOF, hPutStrLn, hFlush, Handle, hSetBuffering, BufferMode(LineBuffering))
 import System.Environment (getExecutablePath)
 import System.Directory (doesFileExist)
 import Control.Concurrent.Thread.Delay
@@ -9,13 +12,13 @@ import Control.Monad
 import Control.Monad.Trans
 
 import Data.Int
+import Data.List
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import Data.Aeson as Aeson
 import Data.Aeson.Types
-import Data.List
 
 import qualified Settings
 import IPC
@@ -30,6 +33,7 @@ data KernelState = KernelState {
 	getKernelResolvingCommands :: [(String, [String])] -- (command, voters)
 }
 
+-- program entry point
 main = do
 	token <- Settings.readToken
 	runBot token cannotConnect kernel
@@ -38,11 +42,10 @@ cannotConnect = do
 	putStrLn "cannot retrieve a websocket url. exits..."
 
 kernel bot conn = do
-	putStrLn "Connected to clug slack"
+	putStrLn "Connected to slack"
 	putStrLn $ "bot name: " ++ (getSelfName $ getSelf bot)
 	putStrLn $ "bot id:   " ++ (getSelfID $ getSelf bot)
 	kstate <- newMVar $ KernelState [] ["codeonwort"] "codeonwort" []
-	--sendMsg conn (Message 1 "C04TJBLCG" "kernel loaded")
 	let loop = do
 		recvMsg conn >>= handleInput bot conn kstate
 		delay 33333 >> loop --30fps
@@ -83,7 +86,9 @@ startVote bot kstate conn json = do
 	else do
 		(idx,first) <- case findIndex (\(resolving,_) -> cmd == resolving) cmd_list_old of
 			Nothing -> do
-				sendMsg conn $ Message 1 chan (user ++ "님이 다음 안건을 의결했습니다: `" ++ cmd ++ "`\n찬성하시면 동일 안건을 30초 내에 입력해주세요.")
+				let totalUsers = show $ length $ getKernelSubscribers ks
+				let voteRatio = "(1/" ++ totalUsers ++ ")"
+				sendMsg conn $ Message 1 chan (user ++ "님이 다음 안건을 의결했습니다: `" ++ cmd ++ "`\n찬성하시면 동일 안건을 입력해주세요. " ++ voteRatio)
 				putMVar kstate $ ks { getKernelResolvingCommands = (cmd,[user]):cmd_list_old }
 				return (0,True)
 			Just idx' -> putMVar kstate ks >> return (idx',False)
@@ -93,10 +98,13 @@ startVote bot kstate conn json = do
 		if user `elem` voters
 		then do
 			when (first == False) $ do
-				sendMsg conn $ Message 1 chan (user ++ "님은 이미 이 안건에 찬성했습니다")
+				sendMsg conn $ Message 1 chan (user ++ "님은 이미 이 안건에 찬성했습니다.")
 			putMVar kstate ks
 		else do
-			sendMsg conn $ Message 10 chan (user ++ "님이 찬성했습니다")
+			let numVoters = show $ length voters + 1
+			let totalUsers = show $ length $ getKernelSubscribers ks
+			let voteRatio = "(" ++ numVoters ++ "/" ++ totalUsers ++ ")"
+			sendMsg conn $ Message 10 chan (user ++ "님이 찬성했습니다. " ++ voteRatio)
 			let cmd_list' = (cmd, user:voters) : (deleteAt cmd_list idx)
 			putMVar kstate $ ks { getKernelResolvingCommands = cmd_list' }
 		ks <- takeMVar kstate
@@ -137,8 +145,15 @@ executeResolution bot kstate conn json = do
 		sendMsg conn $ Message 4 chan ("subscribers: " ++ (show $ getKernelSubscribers ks))
 		sendMsg conn $ Message 5 chan ("loaded modules: " ++ (show $ map (\(_,n)->n) $ getKernelModules ks))
 		putMVar kstate ks
+	-- help
 	when (txt == botName ++ " help") $ do
-		sendMsg conn $ Message 3 chan ("나는 나보다 약한 녀석의 명령 따윈 듣지 않는다.")
+		let help1 = "호출 방법: <봇이름> <명령어>"
+		let help2 = "[커널 명령어 목록]"
+		let help3 = "status: 봇의 상태를 보여준다"
+		let help4 = "load-module: 모듈을 불러온다 (available modules: `test`)"
+		let help5 = "unload-module: 모듈을 제거한다"
+		let helpMsg = intercalate "\n" [help1, help2, help3, help4, help5]
+		sendMsg conn $ Message 3 chan helpMsg
 	-- load module
 	let prefix_load_module = botName ++ " load-module "
 	when (prefix_load_module `isPrefixOf` txt) $ do
@@ -152,8 +167,6 @@ executeResolution bot kstate conn json = do
 				Just _ -> sendMsg conn $ Message 5 chan (module_name ++ "은 이미 로드되었습니다")
 				Nothing -> do
 					modProc@(Just hin, Just hout, _, _) <- createProcess $ (proc module_path []){ std_in = CreatePipe, std_out = CreatePipe }
-					--hSetBuffering hin NoBuffering
-					--hSetBuffering hout LineBuffering
 					ks <- takeMVar kstate
 					let mod_list = getKernelModules ks
 					putMVar kstate $ ks { getKernelModules = (modProc,module_name):mod_list }
@@ -238,6 +251,6 @@ runModule bot conn (Just hin, Just hout, _, _) moduleName channel = do
 					sendRaw conn json
 				_ -> return ()
 			return ()
-		delay 33333 --1000000
+		delay 33333
 		loop
 	loop
